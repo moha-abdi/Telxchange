@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -34,9 +35,25 @@ func NewApiClient(baseURL string) *APIClient {
 	}
 }
 
-type Moha struct {
-	Name string `json:"name"`
-}
+type (
+	ChannelName string
+	AuthMode    string
+)
+
+const (
+	Web       ChannelName = "Web"
+	MobileApp ChannelName = "MobileApp"
+)
+
+const (
+	Pin      AuthMode = "pin"
+	Password AuthMode = "password"
+)
+
+const (
+	DefaultChannel  = MobileApp
+	DefaultAuthMode = Password
+)
 
 type BaseRequest struct {
 	SchemaVersion string `json:"schemaVersion"`
@@ -91,7 +108,7 @@ func (t *TokenRequest) setDefaults() {
 	t.BaseRequest.SchemaVersion = "1.0"
 	t.BaseRequest.RequestID = uuid.NewString()
 	t.BaseRequest.Timestamp = time.Now().Unix()
-	t.BaseRequest.Channel = "Web"
+	t.BaseRequest.Channel = string(DefaultChannel)
 	t.ServiceInfo.ServiceCode = "0101"
 	t.ServiceInfo.ServiceName = "CustomerLogin"
 }
@@ -109,6 +126,9 @@ type LoginToken struct {
 			UserType             string              `json:"userType"`
 			ChannelName          string              `json:"channelName"`
 			ServiceType          string              `json:"serviceType"`
+			AppVersion           string              `json:"appVersion,omitempty"`
+			DeviceOS             string              `json:"deviceOS,omitempty"`
+			AuthMode             string              `json:"authMode,omitempty"`
 		} `json:"requestAttributes"`
 		ServiceCode string `json:"serviceCode"`
 		ServiceName string `json:"serviceName"`
@@ -141,12 +161,16 @@ func (l *LoginRequest) setDefaults() {
 	lt.BaseRequest.SchemaVersion = "1.0"
 	lt.BaseRequest.RequestID = uuid.NewString()
 	lt.BaseRequest.Timestamp = time.Now().Unix()
-	lt.BaseRequest.Channel = "Web"
+	lt.BaseRequest.Channel = string(DefaultChannel)
 	lt.ServiceInfo.ServiceCode = "0101"
 	lt.ServiceInfo.ServiceName = "CustomerLogin"
 	lt.ServiceInfo.RequestAttributes.UserType = "CUSTOMER"
-	lt.ServiceInfo.RequestAttributes.ChannelName = "WEB"
-
+	lt.ServiceInfo.RequestAttributes.ChannelName = string(DefaultChannel)
+	if DefaultChannel == MobileApp {
+		lt.ServiceInfo.RequestAttributes.AppVersion = "8.2.2"
+		lt.ServiceInfo.RequestAttributes.DeviceOS = "iOS"
+		lt.ServiceInfo.RequestAttributes.AuthMode = string(Pin)
+	}
 	// Now set the Token and the RequestId in LoginRequest
 	l.RequestId = lt.BaseRequest.RequestID
 	res, err := json.Marshal(&lt)
@@ -216,6 +240,7 @@ func (c *APIClient) Login(username string, password string) (response LoginRespo
 	if err != nil {
 		return LoginResponse{}, err
 	}
+	os.WriteFile("new.json", data, 0600)
 
 	requestResponse, err := client.Post(url, "application/json", bytes.NewBuffer(data))
 	if err != nil {
@@ -226,6 +251,8 @@ func (c *APIClient) Login(username string, password string) (response LoginRespo
 	if err != nil {
 		return LoginResponse{}, err
 	}
+
+	fmt.Printf("Result is: %s", responseBody)
 
 	var lResponse LoginResponse
 	if err = json.Unmarshal(responseBody, &lResponse); err != nil {
