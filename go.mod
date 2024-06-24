@@ -1,4 +1,4 @@
-module moha/telxchange
+module github.com/moha-abdi/telxchange
 
 go 1.22.3
 
