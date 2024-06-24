@@ -32,5 +32,5 @@ const (
 
 const (
 	DefaultChannel  = MobileApp
-	DefaultAuthMode = Password
+	DefaultAuthMode = Pin
 )
