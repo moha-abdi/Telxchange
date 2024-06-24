@@ -101,7 +101,10 @@ func (c *APIClient) Login(
 	return lResponse, nil
 }
 
-func (c *APIClient) Request2FA(username string, deviceId string) (_result string, err error) {
+func (c *APIClient) Request2FA(
+	username string,
+	deviceId string,
+) (responses.VerificationCodeResponse, error) {
 	url := c.BaseURL + "/api/requestVerificationCode"
 	client := c.httpClient
 
@@ -111,27 +114,32 @@ func (c *APIClient) Request2FA(username string, deviceId string) (_result string
 
 	data, err := json.Marshal(&request)
 	if err != nil {
-		return "", err
+		return responses.VerificationCodeResponse{}, err
 	}
 
 	requestRespone, err := client.Post(url, "application/json", bytes.NewBuffer(data))
 	if err != nil {
-		return "", err
+		return responses.VerificationCodeResponse{}, err
 	}
 
 	requestResponeBody, err := io.ReadAll(requestRespone.Body)
 	if err != nil {
-		return "", err
+		return responses.VerificationCodeResponse{}, err
 	}
 
-	return string(requestResponeBody), nil
+	var response responses.VerificationCodeResponse
+	if err := json.Unmarshal(requestResponeBody, &response); err != nil {
+		return responses.VerificationCodeResponse{}, err
+	}
+
+	return response, nil
 }
 
 func (c *APIClient) AuthenticateDevice(
 	username string,
 	deviceId string,
 	otpCode string,
-) (_result string, err error) {
+) (responses.AuthDeviceResponse, error) {
 	url := c.BaseURL + "/api/authenticateDevice"
 	client := c.httpClient
 
@@ -142,18 +150,23 @@ func (c *APIClient) AuthenticateDevice(
 
 	data, err := json.Marshal(&request)
 	if err != nil {
-		return "", nil
+		return responses.AuthDeviceResponse{}, err
 	}
 
 	requestResponse, err := client.Post(url, "application/json", bytes.NewBuffer(data))
 	if err != nil {
-		return "", err
+		return responses.AuthDeviceResponse{}, err
 	}
 
 	requestResponseBody, err := io.ReadAll(requestResponse.Body)
 	if err != nil {
-		return "", err
+		return responses.AuthDeviceResponse{}, err
 	}
 
-	return string(requestResponseBody), nil
+	var response responses.AuthDeviceResponse
+	if err := json.Unmarshal(requestResponseBody, &response); err != nil {
+		return responses.AuthDeviceResponse{}, err
+	}
+
+	return response, nil
 }

@@ -20,7 +20,7 @@ func main() {
 	device_id := os.Getenv("TELXCHANGE_DEVICE_ID")
 	fmt.Println("Loaded account Info ->", "Username:", username, "Device ID:", device_id)
 
-	apiCli := api.NewApiClient(config.MFS_PROXY_25263)
+	apiCli := api.NewApiClient(config.MFS_PROXY_DEFAULT)
 
 	loginResponse, err := apiCli.Login(
 		username,
@@ -30,7 +30,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Server Response: ", loginResponse.ServiceInfo.ResponseAttributes.ReplyMessage)
+	fmt.Println("Login Response: ", loginResponse.ServiceInfo.ResponseAttributes.ReplyMessage)
 
 	if loginResponse.ServiceInfo.ResponseAttributes.ResultCode == "6020" {
 		codeResponse, err := apiCli.Request2FA(
@@ -40,7 +40,10 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(codeResponse)
+		fmt.Println(
+			"Request2FA Response: ",
+			codeResponse.ServiceInfo.ResponseAttributes.ReplyMessage,
+		)
 
 		fmt.Print("Please enter the otp Code: ")
 		var otpCode string
@@ -54,7 +57,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(result)
+		fmt.Println("Auth Code Response:", result.ServiceInfo.ResponseAttributes.ReplyMessage)
 
 	}
 }
