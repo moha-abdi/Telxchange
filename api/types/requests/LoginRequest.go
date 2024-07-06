@@ -36,7 +36,7 @@ func NewLoginRequest() *LoginRequest {
 	if config.DefaultChannel == config.MobileApp {
 		loginRequest.ServiceInfo.RequestAttributes.AppVersion = "8.2.2"
 		loginRequest.ServiceInfo.RequestAttributes.DeviceOS = "iOS"
-		loginRequest.ServiceInfo.RequestAttributes.AuthMode = string(config.DefaultAuthMode)
+		loginRequest.ServiceInfo.RequestAttributes.AuthMode = string(config.Pin)
 	}
 
 	return loginRequest
