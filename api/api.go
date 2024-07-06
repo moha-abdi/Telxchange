@@ -7,23 +7,32 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
+	"strconv"
 
 	"github.com/moha-abdi/telxchange/api/types/requests"
 	"github.com/moha-abdi/telxchange/api/types/responses"
+	"github.com/moha-abdi/telxchange/internal/exchange"
+	"github.com/moha-abdi/telxchange/internal/exchange/network"
 )
 
 type APIClient struct {
 	BaseURL    string
 	httpClient *http.Client
+	username   string
+	sessionId  string
+	deviceId   string
 }
 
-func NewApiClient(baseURL string) *APIClient {
+func NewApiClient(baseURL, username, deviceId string) *APIClient {
 	f, err := os.OpenFile("C:/Users/lenovo/golog.log", os.O_APPEND|os.O_CREATE, 0600)
 	if err != nil {
 		panic(err)
 	}
 	return &APIClient{
-		BaseURL: baseURL,
+		BaseURL:  baseURL,
+		username: username,
+		deviceId: deviceId,
 		httpClient: &http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
@@ -34,12 +43,33 @@ func NewApiClient(baseURL string) *APIClient {
 	}
 }
 
-func (c *APIClient) CreateToken(username string) (token string, err error) {
-	url := c.BaseURL + "/api/createToken"
-	client := c.httpClient
+// Notice that this method currently does not have any usage
+// but it will be used to set common attributes as the
+// code logic increases.
+func (c *APIClient) setCommonAttributes(req interface{}) {
+	v := reflect.ValueOf(req).Elem()
+	if v.Kind() == reflect.Struct {
+		serviceInfo := v.FieldByName("ServiceInfo")
+		if serviceInfo.IsValid() {
+			requestAttributes := serviceInfo.FieldByName("RequestAttributes")
+			if requestAttributes.IsValid() {
+				mobileNo := requestAttributes.FieldByName("MobileNo")
+				if mobileNo.IsValid() && mobileNo.CanSet() {
+					mobileNo.SetString(c.username)
+				}
+				deviceId := requestAttributes.FieldByName("DeviceId")
+				if deviceId.IsValid() && deviceId.CanSet() {
+					deviceId.SetString(c.deviceId)
+				}
+				sessionId := requestAttributes.FieldByName("SessionId")
+				if sessionId.IsValid() && sessionId.CanSet() {
+					sessionId.SetString(c.sessionId)
+				}
+			}
+		}
+	}
+}
 
-	tRequest := requests.NewTokenRequest()
-	tRequest.ServiceInfo.RequestAttributes.Username = username
 func (c *APIClient) doRequest(endpoint string, req interface{}, resp interface{}) error {
 	c.setCommonAttributes(req)
 
@@ -68,108 +98,102 @@ func (c *APIClient) doRequest(endpoint string, req interface{}, resp interface{}
 	return json.Unmarshal(body, resp)
 }
 
-func (c *APIClient) Login(
-	username string,
-	password string,
-	deviceId string,
-) (response responses.LoginResponse, err error) {
-	url := c.BaseURL + "/api/login"
-	client := c.httpClient
+func (c *APIClient) CreateToken() (string, error) {
+	req := requests.NewTokenRequest()
+	req.ServiceInfo.RequestAttributes.Username = c.username
 
-	loginRequest := requests.NewLoginRequest()
-	loginRequest.ServiceInfo.RequestAttributes.Username = username
-	loginRequest.ServiceInfo.RequestAttributes.UserPassword = password
-	loginRequest.ServiceInfo.RequestAttributes.DeviceId = deviceId
-
-	data, err := json.Marshal(&loginRequest)
+	var resp responses.TokenResponse
+	err := c.doRequest("/api/createToken", req, &resp)
 	if err != nil {
-		return responses.LoginResponse{}, err
+		return "", err
 	}
 
-	requestResponse, err := client.Post(url, "application/json", bytes.NewBuffer(data))
-	if err != nil {
-		return responses.LoginResponse{}, err
-	}
-
-	responseBody, err := io.ReadAll(requestResponse.Body)
-	if err != nil {
-		return responses.LoginResponse{}, err
-	}
-
-	var lResponse responses.LoginResponse
-	if err = json.Unmarshal(responseBody, &lResponse); err != nil {
-		return responses.LoginResponse{}, err
-	}
-
-	return lResponse, nil
+	return resp.ServiceInfo.ResponseAttributes.Token, nil
 }
 
-func (c *APIClient) Request2FA(
-	username string,
-	deviceId string,
-) (responses.VerificationCodeResponse, error) {
-	url := c.BaseURL + "/api/requestVerificationCode"
-	client := c.httpClient
+func (c *APIClient) Login(password string) (responses.LoginResponse, error) {
+	req := requests.NewLoginRequest()
+	req.ServiceInfo.RequestAttributes.Username = c.username
+	req.ServiceInfo.RequestAttributes.UserPassword = password
+	req.ServiceInfo.RequestAttributes.DeviceId = c.deviceId
 
-	request := requests.NewVerificationCodeRequest()
-	request.ServiceInfo.RequestAttributes.MobileNumber = username
-	request.ServiceInfo.RequestAttributes.DeviceId = deviceId
-
-	data, err := json.Marshal(&request)
-	if err != nil {
-		return responses.VerificationCodeResponse{}, err
+	var resp responses.LoginResponse
+	err := c.doRequest("/api/login", req, &resp)
+	if err == nil {
+		c.sessionId = resp.ServiceInfo.ResponseAttributes.SessionId
 	}
-
-	requestRespone, err := client.Post(url, "application/json", bytes.NewBuffer(data))
-	if err != nil {
-		return responses.VerificationCodeResponse{}, err
-	}
-
-	requestResponeBody, err := io.ReadAll(requestRespone.Body)
-	if err != nil {
-		return responses.VerificationCodeResponse{}, err
-	}
-
-	var response responses.VerificationCodeResponse
-	if err := json.Unmarshal(requestResponeBody, &response); err != nil {
-		return responses.VerificationCodeResponse{}, err
-	}
-
-	return response, nil
+	return resp, err
 }
 
-func (c *APIClient) AuthenticateDevice(
-	username string,
-	deviceId string,
-	otpCode string,
-) (responses.AuthDeviceResponse, error) {
-	url := c.BaseURL + "/api/authenticateDevice"
-	client := c.httpClient
+func (c *APIClient) Request2FA() (responses.VerificationCodeResponse, error) {
+	req := requests.NewVerificationCodeRequest()
 
-	request := requests.NewAuthDeviceRequest()
-	request.ServiceInfo.RequestAttributes.MobileNumber = username
-	request.ServiceInfo.RequestAttributes.DeviceId = deviceId
-	request.ServiceInfo.RequestAttributes.OtpCode = otpCode
+	var resp responses.VerificationCodeResponse
+	err := c.doRequest("/api/requestVerificationCode", req, &resp)
+	return resp, err
+}
 
-	data, err := json.Marshal(&request)
+func (c *APIClient) AuthenticateDevice(otpCode string) (responses.AuthDeviceResponse, error) {
+	req := requests.NewAuthDeviceRequest()
+	req.ServiceInfo.RequestAttributes.OtpCode = otpCode
+
+	var resp responses.AuthDeviceResponse
+	err := c.doRequest("/api/authenticateDevice", req, &resp)
+	return resp, err
+}
+
+func (c *APIClient) GetBalance(accountId string) (responses.BalanceQuertResponse, error) {
+	req := requests.NewBalanceQueryRequest()
+	req.ServiceInfo.RequestAttributes.AccountId = accountId
+
+	var resp responses.BalanceQuertResponse
+	err := c.doRequest("/api/balanceQuery", req, &resp)
+	return resp, err
+}
+
+func (c *APIClient) GetExchangeRate(partnerID string) (responses.ExchangeRateResponse, error) {
+	req := requests.NewExchangeRateRequest()
+	req.ServiceInfo.RequestAttributes.PartnerUID = partnerID
+	req.ServiceInfo.RequestAttributes.TargetCurrencyCode = exchange.USD.Itoa()
+	req.ServiceInfo.RequestAttributes.SourceCurrencyCode = exchange.SLSH.Itoa()
+
+	var resp responses.ExchangeRateResponse
+	err := c.doRequest("/api/getMerchantExchangeRateByCurrencyCode", req, &resp)
+	return resp, err
+}
+
+func (c *APIClient) GetPartnerInfo(
+	network network.Network,
+	partnerID string,
+) (responses.PartnerInfo, *APIError) {
+	req := requests.NewPartnerInfoRequest()
+	req.ServiceInfo.RequestAttributes.SubPartnerUID = network.Code.Itoa() + partnerID
+
+	var resp responses.PartnerInfoResponse
+	err := c.doRequest("/api/getPartnerInfoByUID", req, &resp)
 	if err != nil {
-		return responses.AuthDeviceResponse{}, err
+		// "-1" is used for runtime internal errors
+		return responses.PartnerInfo{}, NewAPIError("-1", err.Error())
 	}
 
-	requestResponse, err := client.Post(url, "application/json", bytes.NewBuffer(data))
-	if err != nil {
-		return responses.AuthDeviceResponse{}, err
+	if resp.ServiceInfo.ResponseAttributes.ResultCode != "2001" {
+		return responses.PartnerInfo{}, NewAPIError(
+			resp.ServiceInfo.ResponseAttributes.ResultCode,
+			resp.ServiceInfo.ResponseAttributes.ReplyMessage,
+		)
 	}
+	resp.ServiceInfo.ResponseAttributes.PartnerInfo.ID, _ = strconv.Atoi(partnerID)
 
-	requestResponseBody, err := io.ReadAll(requestResponse.Body)
-	if err != nil {
-		return responses.AuthDeviceResponse{}, err
-	}
+	return resp.ServiceInfo.ResponseAttributes.PartnerInfo, nil
+}
 
-	var response responses.AuthDeviceResponse
-	if err := json.Unmarshal(requestResponseBody, &response); err != nil {
-		return responses.AuthDeviceResponse{}, err
-	}
+func (c *APIClient) TestEndpoint(endpoint string) (string, error) {
+	req := requests.NewExchangeRateRequest()
+	req.ServiceInfo.RequestAttributes.PartnerUID = ""
+	req.ServiceInfo.RequestAttributes.TargetCurrencyCode = exchange.USD.Itoa()
+	req.ServiceInfo.RequestAttributes.SourceCurrencyCode = exchange.SLSH.Itoa()
 
-	return response, nil
+	var resp string
+	err := c.doRequest(endpoint, req, &resp)
+	return resp, err
 }
