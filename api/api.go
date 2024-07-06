@@ -40,29 +40,32 @@ func (c *APIClient) CreateToken(username string) (token string, err error) {
 
 	tRequest := requests.NewTokenRequest()
 	tRequest.ServiceInfo.RequestAttributes.Username = username
+func (c *APIClient) doRequest(endpoint string, req interface{}, resp interface{}) error {
+	c.setCommonAttributes(req)
 
-	alteredData, err := json.Marshal(&tRequest)
+	data, err := json.Marshal(req)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	response, err := client.Post(url, "application/json", bytes.NewBuffer(alteredData))
+	url := c.BaseURL + endpoint
+	response, err := http.Post(url, "application/json", bytes.NewBuffer(data))
 	if err != nil {
-		return "", err
+		return err
+	}
+	defer response.Body.Close()
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return err
 	}
 
-	resBody, err := io.ReadAll(response.Body)
-	if err != nil {
-		return "", err
+	if strResp, ok := resp.(*string); ok {
+		*strResp = string(body)
+		return nil
 	}
 
-	var tResponse responses.TokenResponse
-	err = json.Unmarshal(resBody, &tResponse)
-	if err != nil {
-		return "", err
-	}
-
-	return tResponse.ServiceInfo.ResponseAttributes.Token, nil
+	return json.Unmarshal(body, resp)
 }
 
 func (c *APIClient) Login(
