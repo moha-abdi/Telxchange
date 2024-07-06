@@ -1,6 +1,7 @@
 package requests
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,7 +11,7 @@ import (
 type BaseRequest struct {
 	SchemaVersion string `json:"schemaVersion"`
 	RequestID     string `json:"requestId"`
-	Timestamp     int64  `json:"timestamp"`
+	Timestamp     string `json:"timestamp"`
 	Channel       string `json:"channel"`
 	SystemInfo    struct {
 		SystemID     string `json:"systemId"`
@@ -22,7 +23,7 @@ func NewBaseRequest() *BaseRequest {
 	return &BaseRequest{
 		SchemaVersion: "1.0",
 		RequestID:     uuid.NewString(),
-		Timestamp:     time.Now().Unix(),
+		Timestamp:     strconv.FormatInt(time.Now().UnixMilli(), 10),
 		Channel:       string(config.DefaultChannel),
 	}
 }
