@@ -37,6 +37,6 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// generateCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-  generateCmd.Flags().IntVarP(&maxMerchants, "--max-merchants", "m", 10, "Maximum number of merchants to generate")
-  generateCmd.Flags().IntVarP(&maxGoroutines, "--max-goroutines", "g", 1, "Maximum number of concurrent goroutine channels")
+  generateCmd.Flags().IntVarP(&maxMerchants, "max-merchants", "m", 10, "Maximum number of merchants to generate")
+  generateCmd.Flags().IntVarP(&maxGoroutines, "max-goroutines", "g", 1, "Maximum number of concurrent goroutine channels")
 }
