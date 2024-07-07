@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 
@@ -25,7 +26,11 @@ type APIClient struct {
 }
 
 func NewApiClient(baseURL, username, deviceId string) *APIClient {
-	f, err := os.OpenFile("C:/Users/lenovo/golog.log", os.O_APPEND|os.O_CREATE, 0600)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	f, err := os.OpenFile(filepath.Join(homeDir, "golog.log"), os.O_APPEND|os.O_CREATE, 0600)
 	if err != nil {
 		panic(err)
 	}
