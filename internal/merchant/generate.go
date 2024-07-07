@@ -32,10 +32,20 @@ func GenerateMerchants(maxMerchants int, maxGoroutines int) {
 		zap.String("DeviceID", deviceID),
 	)
 	apiCli := api.NewApiClient(config.MFS_PROXY_DEFAULT, username, deviceID)
-	_, err := apiCli.Login(password)
+	loginResponse, err := apiCli.Login(password)
 	if err != nil {
 		log.Fatal("Login Error: ", zap.Error(err))
 	}
+	resultCode := loginResponse.ServiceInfo.ResponseAttributes.ResultCode
+
+	if resultCode != "2001" {
+		log.Fatal(
+			"Login Failed",
+			zap.String("Reason", loginResponse.ServiceInfo.ResponseAttributes.ReplyMessage),
+		)
+		return
+	}
+
 	db, err := database.NewDatabase()
 	if err != nil {
 		log.Fatal("Couldn't connect to database:", zap.Error(err))
