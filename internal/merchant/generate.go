@@ -18,7 +18,7 @@ import (
 
 var log = logger.GetLogger()
 
-func GenerateMerchants(maxMerchants int, maxGoroutines int) {
+func GenerateMerchants(maxMerchants int, maxGoroutines int, startWithMerchant int) {
 	if err := godotenv.Load(); err != nil {
 		log.Fatal("Couldn't load .env file")
 	}
@@ -57,7 +57,7 @@ func GenerateMerchants(maxMerchants int, maxGoroutines int) {
 	// Create a channel to limit the number of concurrent goroutines
 	semaphore := make(chan struct{}, maxGoroutines) // Adjust this number based on your needs
 
-	for i := 300000; i < 300000+maxMerchants && i < 400000; i++ {
+	for i := startWithMerchant; i < startWithMerchant+maxMerchants && i < 400000; i++ {
 		wg.Add(1)
 		semaphore <- struct{}{} // Acquire a slot in the semaphore
 
